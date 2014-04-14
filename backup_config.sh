@@ -7,14 +7,17 @@
 
 CWD=$(pwd)
 
-FILES=(egrep -v '(^\#)|(^\s+$)' $CWD/files)
+FILES=$(egrep -v '(^\#)|(^\s+$)' $CWD/files)
 NETWORK=$(hostname --domain) 
 #ou $(hostname -d)
 
 MACHINE=$(hostname --short) 
 #ou $(hostname -s)
 
-if [ ! -d $BACKUPDIR ]; then #si le répertoire $BACKUPDIR n'existe pas alors
+BACKUPDIR=$CWD/$NETWORK/$MACHINE
+
+if [ ! -d $BACKUPDIR ]; then 
+  #si le répertoire $BACKUPDIR n'existe pas alors
   echo ":Création du répertoire de sauvegarde"
   mkdir -p $BACKUPDIR
 else 
@@ -25,7 +28,7 @@ for FILE in $FILES; do
   if [ -r $FILE ]; then
     BASENAME=$(basename $FILE)
     ABSPATH=$(dirname $FILE) 
-    RELPATH=$(echo $ABSPATH | cut -2-)
+    RELPATH=$(echo $ABSPATH | cut -c2- )
       if [ ! -d $BACKUPDIR/$RELPATH ]; then
         mkdir -p $BACKUPDIR/$RELPATH
       fi

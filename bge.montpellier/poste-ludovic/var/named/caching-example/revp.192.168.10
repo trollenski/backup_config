@@ -1,0 +1,11 @@
+$TTL	86400
+$ORIGIN 10.168.192.IN-ARPA.ARPA; 
+@			IN SOA	poste-ludovic.toto.toto. hostmaster.toto.toto. (
+					2014040901		; serial (d. adams)
+					3H	        	; refresh
+					15M	        	; retry
+					1W	        	; expiry
+					1D )	      	; minimum
+
+			 IN NS	poste-ludovic.toto.toto.
+1		 IN PTR		poste-ludovic.toto.toto.	
