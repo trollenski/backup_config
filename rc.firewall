@@ -1,0 +1,87 @@
+#!/bin/bash
+#
+#/etc/rc.d/rc.firewall
+
+#Variables
+IPT=$(which iptables)
+
+function status {
+  echo
+  echo "=== Filter Tables ==="
+  echo
+  $IPT -L -v -n
+  echo
+  echo "=== Filter NAT ==="
+  echo
+  $IPT -t nat -L -v -n
+  echo
+}
+
+function stop {
+
+  # Set default policies to ACCEPT everything
+    $IPT -P INPUT ACCEPT
+    $IPT -P FORWARD ACCEPT
+    $IPT -P OUTPUT ACCEPT
+    $IPT -t nat -P PREROUTING ACCEPT
+    $IPT -t nat -P INPUT ACCEPT
+    $IPT -t nat -P OUTPUT ACCEPT
+    $IPT -t nat -P POSTROUTING ACCEPT
+    $IPT -t mangle -P PREROUTING ACCEPT
+    $IPT -t mangle -P INPUT ACCEPT
+    $IPT -t mangle -P FORWARD ACCEPT
+    $IPT -t mangle -P OUTPUT ACCEPT
+    $IPT -t mangle -P POSTROUTING ACCEPT
+
+  # Zero out all counters
+     $IPT -t filter -Z
+     $IPT -t nat -Z
+     $IPT -t mangle -Z
+
+  # Flush all active rules and delete all
+  # custom chains
+     $IPT -t filter -F
+     $IPT -t filter -X
+     $IPT -t nat -F
+     $IPT -t nat -X
+     $IPT -t mangle -F
+     $IPT -t mangle -X
+}
+
+function start {
+
+  # Set default Policies
+    $IPT -P INPUT DROP
+
+  # Autoriser l'interface de loopback
+    $IPT -A INPUT -i lo -j ACCEPT
+
+  # Accepte les messages important du protocole ICMP
+    $IPT -A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+    $IPT -A INPUT -p icmp --icmp-type time-exceeded -j ACCEPT
+    $IPT -A INPUT -p icmp --icmp-type destination-unreachable -j ACCEPT
+}
+
+
+case $1 in
+  stop)
+    echo "Stopping firewall"
+    stop
+  ;;
+  start)
+    echo "Starting firewall"
+    start
+  ;;
+  restart)
+    echo "Stopping firewall"
+    stop
+    echo "Starting firewall"
+    start
+  ;;
+  status)
+    status
+  ;;
+  *)
+  echo "Usage: $0 {status,stop,start}"
+  ;;
+esac
