@@ -66,7 +66,8 @@ function start {
     $IPT -P FORWARD ACCEPT
     $IPT -P OUTPUT ACCEPT
 
-  # Accepter les paquets entrants provenant de connexions déjà établies :
+  # Accepter les paquets entrants provenant de connexions déjà établies
+  # (communication TCP):
     
     $IPT -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
 
