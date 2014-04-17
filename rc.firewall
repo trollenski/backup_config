@@ -1,119 +1,171 @@
-#!/bin/bash
-#
-#/etc/rc.d/rc.firewall
+#!/bin/sh
+# 
+# /etc/rc.d/rc.firewall
 
-#Variables
 IPT=$(which iptables)
+MOD=$(which modprobe)
 
-function status {
-  echo
-  echo "=== Filter Tables ==="
-  echo
-  $IPT -L -v -n
-  echo
-  echo "=== Filter NAT ==="
-  echo
-  $IPT -t nat -L -v -n
-  echo
+# Internet
+IFACE_INET=eth0
+
+# Réseau local
+IFACE_LAN=eth1
+IFACE_LAN_IP=192.168.2.0/24
+
+function start {
+
+  # Bloquer les connexions entrantes
+  $IPT -P INPUT DROP
+
+  # Accepter les connexions routées
+  $IPT -P FORWARD ACCEPT
+
+  # Accepter les connexions sortantes
+  $IPT -P OUTPUT ACCEPT
+
+  # Pas de filtrage sur la boucle locale.
+  $IPT -A INPUT -i lo -j ACCEPT
+
+  # Accepter les messages ICMP nécessaires pour le 'ping'
+  $IPT -A INPUT -p icmp --icmp-type echo-request -j ACCEPT
+  $IPT -A INPUT -p icmp --icmp-type time-exceeded -j ACCEPT
+  $IPT -A INPUT -p icmp --icmp-type destination-unreachable -j ACCEPT
+
+  # Accepter les paquets entrants relatifs à des connexions déjà établies. 
+  $IPT -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
+
+  # FTP local
+  # $MOD ip_conntrack_ftp
+  # $IPT -A INPUT -p tcp -i $IFACE_LAN --dport 21 -j ACCEPT
+
+  # SSH local
+  $IPT -A INPUT -p tcp -i $IFACE_LAN --dport 22 -j ACCEPT
+
+  # SSH en provenance de l'extérieur, une tentative de connexion par minute
+  # $IPT -A INPUT -p tcp -i $IFACE_INET --dport 22 -m state --state NEW \
+  #         -m recent --set --name SSH
+  # $IPT -A INPUT -p tcp -i $IFACE_INET --dport 22 -m state --state NEW \
+  #         -m recent --update --seconds 60 --hitcount 2 --rttl --name SSH -j DROP
+  # $IPT -A INPUT -p tcp -i $IFACE_INET --dport 22 -j ACCEPT
+
+  # DNS local
+  $IPT -A INPUT -p tcp -i $IFACE_LAN --dport 53 -j ACCEPT
+  $IPT -A INPUT -p udp -i $IFACE_LAN --dport 53 -j ACCEPT
+
+  # DHCP
+  $IPT -A INPUT -p udp -i $IFACE_LAN --dport 67:68 -j ACCEPT
+
+  # HTTP local
+  $IPT -A INPUT -p tcp -i $IFACE_LAN --dport 80 -j ACCEPT
+
+  # NTP local
+  $IPT -A INPUT -p udp -i $IFACE_LAN --dport 123 -j ACCEPT
+
+  # Samba 
+  # $IPT -A INPUT -p udp -i $IFACE_LAN --dport 137:138 -j ACCEPT
+  # $IPT -A INPUT -p tcp -i $IFACE_LAN --dport 139 -j ACCEPT
+  # $IPT -A INPUT -p tcp -i $IFACE_LAN --dport 445 -j ACCEPT
+
+  # CUPS
+  # $IPT -A INPUT -p tcp -i $IFACE_LAN --dport 631 -j ACCEPT
+  # $IPT -A INPUT -p udp -i $IFACE_LAN --dport 631 -j ACCEPT
+
+  # NFS
+  # $IPT -A INPUT -p tcp -i $IFACE_LAN --dport 111 -j ACCEPT
+  # $IPT -A INPUT -p udp -i $IFACE_LAN --dport 111 -j ACCEPT
+  # $IPT -A INPUT -p tcp -i $IFACE_LAN --dport 2049 -j ACCEPT
+  # $IPT -A INPUT -p udp -i $IFACE_LAN --dport 2049 -j ACCEPT
+  # $IPT -A INPUT -p tcp -i $IFACE_LAN --dport 32765:32769 -j ACCEPT
+  # $IPT -A INPUT -p udp -i $IFACE_LAN --dport 32765:32769 -j ACCEPT
+
+  # NIS
+  # $IPT -A INPUT -p tcp -i $IFACE_LAN --dport 834 -j ACCEPT
+  # $IPT -A INPUT -p udp -i $IFACE_LAN --dport 834 -j ACCEPT
+
+  # Squid 
+  # $IPT -A INPUT -p tcp -i $IFACE_LAN --dport 3128 -j ACCEPT
+  # $IPT -A INPUT -p udp -i $IFACE_LAN --dport 3128 -j ACCEPT
+
+  # Rediriger toutes les requêtes HTTP - sauf celles vers le serveur lui-même -
+  # vers le port 3128 pour obtenir un proxy transparent
+  # $IPT -A PREROUTING -t nat -i $IFACE_LAN -p tcp ! -d 192.168.2.1 \
+  #               --dport 80 -j REDIRECT --to-port 3128
+
+  # MPD local
+  # $IPT -A INPUT -p tcp -i $IFACE_LAN --dport 8000 -j ACCEPT
+
+  # Enregistrer la trace des paquets rejetés
+  $IPT -A INPUT -j LOG --log-prefix "+++ IPv4 packet rejected +++"
+  $IPT -A INPUT -j REJECT
+
+  # Activer le relais des paquets
+  $IPT -t nat -A POSTROUTING -o $IFACE_INET -s $IFACE_LAN_IP -j MASQUERADE
+
 }
 
 function stop {
 
-  # Set default policies to ACCEPT everything
-    $IPT -P INPUT ACCEPT
-    $IPT -P FORWARD ACCEPT
-    $IPT -P OUTPUT ACCEPT
-    $IPT -t nat -P PREROUTING ACCEPT
-    $IPT -t nat -P INPUT ACCEPT
-    $IPT -t nat -P OUTPUT ACCEPT
-    $IPT -t nat -P POSTROUTING ACCEPT
-    $IPT -t mangle -P PREROUTING ACCEPT
-    $IPT -t mangle -P INPUT ACCEPT
-    $IPT -t mangle -P FORWARD ACCEPT
-    $IPT -t mangle -P OUTPUT ACCEPT
-    $IPT -t mangle -P POSTROUTING ACCEPT
+  # Accepter tous les paquets
+  $IPT -P INPUT ACCEPT
+  $IPT -P FORWARD ACCEPT
+  $IPT -P OUTPUT ACCEPT
+  $IPT -t nat -P PREROUTING ACCEPT
+  $IPT -t nat -P INPUT ACCEPT
+  $IPT -t nat -P OUTPUT ACCEPT
+  $IPT -t nat -P POSTROUTING ACCEPT
+  $IPT -t mangle -P PREROUTING ACCEPT
+  $IPT -t mangle -P INPUT ACCEPT
+  $IPT -t mangle -P FORWARD ACCEPT
+  $IPT -t mangle -P OUTPUT ACCEPT
+  $IPT -t mangle -P POSTROUTING ACCEPT
 
-  # Zero out all counters
-     $IPT -t filter -Z
-     $IPT -t nat -Z
-     $IPT -t mangle -Z
+  # Remettre les compteurs à zéro
+  $IPT -t filter -Z
+  $IPT -t nat -Z
+  $IPT -t mangle -Z
 
-  # Flush all active rules and delete all
-  # custom chains
-     $IPT -t filter -F
-     $IPT -t filter -X
-     $IPT -t nat -F
-     $IPT -t nat -X
-     $IPT -t mangle -F
-     $IPT -t mangle -X
-}
-
-function start {
-
-  # Set default Policies
-    $IPT -P INPUT DROP
-
-  # Autoriser l'interface de loopback
-    $IPT -A INPUT -i lo -j ACCEPT
-
-  # Accepte les messages important du protocole ICMP
-    $IPT -A INPUT -p icmp --icmp-type echo-request -j ACCEPT
-    $IPT -A INPUT -p icmp --icmp-type time-exceeded -j ACCEPT
-    $IPT -A INPUT -p icmp --icmp-type destination-unreachable -j ACCEPT
-
-  # Politique par défaut pour les chaînes FORWARD et ACCEPT:
-    
-    $IPT -P FORWARD ACCEPT
-    $IPT -P OUTPUT ACCEPT
-
-  # Accepter les paquets entrants provenant de connexions déjà établies
-  # (communication TCP):
-    
-    $IPT -A INPUT -m state --state RELATED,ESTABLISHED -j ACCEPT
-
-  # Accepter les connexions SSH sur le réseau local: autorise le protocole TCP
-  # sur le port 22 et sur l'interface eth0
-
-    $IPT -A INPUT -p tcp -i eth0 --dport 22 -j ACCEPT
-
-  # Autoriser le serveur DHCP local: on autorise le protocole udp sur le port
-  # 67 et 68 sur l'interface eth0
-
-    $IPT -A INPUT -p udp -i eth0 --dport 67:68 -j ACCEPT
-
-  # Autoriser le serveur DNS local: on autorise les protocoles TCP et UDP sur
-  # le port 53, sur l'interface entrante eth0
-    
-    $IPT -A INPUT -p tcp -i eth0 --dport 53 -j ACCEPT
-    $IPT -A INPUT -p udp -i eth0 --dport 53 -j ACCEPT
-  
-  # Enregistrer les paquets rejetés
-
-    $IPT -A INPUT -j LOG --log-prefix "----- IPv4 packet rejected -----"
-    $IPT -A INPUT -j REJECT
+  # Supprimer toutes les règles ainsi que les chaînes personnalisées
+  $IPT -t filter -F
+  $IPT -t filter -X
+  $IPT -t nat -F
+  $IPT -t nat -X
+  $IPT -t mangle -F
+  $IPT -t mangle -X
 
 }
 
+function status {
+  echo
+  echo "=== Filter table ==="
+  echo
+  $IPT -L -v -n
+  #echo
+  #echo "==== NAT table ===="
+  #echo
+  #$IPT -t nat -L -v -n
+  #echo
+}
 
 case $1 in
-  stop)
-    echo "Stopping firewall"
-    stop
-  ;;
   start)
-    echo "Starting firewall"
+    echo "Starting firewall."
     start
   ;;
-  restart)
-    echo "Stopping firewall"
+  stop)
+    echo "Stopping firewall."
     stop
-    echo "Starting firewall"
+  ;;
+  restart)
+    echo "Stopping firewall."
+    stop
+    echo "Starting firewall."
     start
   ;;
   status)
     status
   ;;
   *)
-  echo "Usage: $0 {status,stop,start}"
+  echo "Usage: $0 {start|stop|restart|status}"
   ;;
 esac
+
